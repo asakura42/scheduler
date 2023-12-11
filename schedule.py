@@ -21,6 +21,7 @@
 import sys
 import re
 import os
+import random
 import datetime
 from pathlib import Path
 from enum import Enum
@@ -259,6 +260,10 @@ class WeeklyScheduleGenerator(QMainWindow):
         add_task_button = QPushButton("Add Task")
         render_button = QPushButton("Render")
 
+        # Create an "Auto colors" button
+        auto_colors_button = QPushButton("Auto colors")
+        auto_colors_button.clicked.connect(self.on_auto_colors_clicked)
+
         # Create a delete button
         delete_button = QPushButton("Delete Task")
         delete_button.clicked.connect(self.delete_task)
@@ -283,6 +288,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         layout.addWidget(self.task_list)
         layout.addWidget(render_button)
         layout.addWidget(delete_button)
+        layout.addWidget(auto_colors_button)
 
         # Create a central widget and set the layout
         central_widget = QWidget()
@@ -326,6 +332,54 @@ class WeeklyScheduleGenerator(QMainWindow):
             # If the user confirms the deletion, remove the selected task item from the task list
             if reply == QMessageBox.Yes:
                 self.task_list.takeItem(self.task_list.row(selected_item))
+
+
+    def on_auto_colors_clicked(self):
+        # Display a confirmation dialog
+        confirmation = QMessageBox.question(
+            self,
+            "Confirmation",
+            "Are you sure you want to generate auto colors for tasks?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if confirmation == QMessageBox.Yes:
+            self.generate_auto_colors()
+
+
+    def generate_auto_colors(self):
+        # Create a dictionary to store colors for each task name
+        task_colors = {}
+
+        # Iterate over the tasks in the task list
+        for i in range(self.task_list.count()):
+            task_item = self.task_list.item(i)
+            task_name, task_day, task_time, task_color = task_item.text().split(', ')
+            task_name = task_name.strip()
+
+            # Generate a random muted color if the task name is not in the dictionary
+            if task_name not in task_colors:
+                color = self.generate_muted_color()
+                task_colors[task_name] = color
+
+            # Update the color field of the task item
+            task_item.setText(f"{task_name}, {task_day}, {task_time}, {task_colors[task_name]}")
+            task_item.setForeground(QColor(task_colors[task_name]))  # Set the font color
+
+        # Update the task list to reflect the new colors
+        self.task_list.update()
+
+    def generate_muted_color(self):
+        # Generate random RGB values in the range of 100-255 to create brighter and more vibrant colors
+        r = random.randint(100, 255)
+        g = random.randint(100, 255)
+        b = random.randint(100, 255)
+
+        # Convert RGB values to hexadecimal color code
+        color = "#{:02x}{:02x}{:02x}".format(r, g, b)
+
+        return color
+
     def add_task(self):
         # Get the task details from the input fields
         task = self.task_input.text()
@@ -346,10 +400,12 @@ class WeeklyScheduleGenerator(QMainWindow):
         if self.selected_task is not None:
             # Edit the selected task
             self.selected_task.setText(f"{task}, {day}, {start_time} - {end_time}, {color}")
+            self.selected_task.setForeground(QColor(color))  # Set the font color
             self.selected_task = None
         else:
             # Create a new task item
             task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
+            task_item.setForeground(QColor(color))  # Set the font color
             # Insert the task item in the sorted position
             self.insert_sorted(task_item)
 
@@ -394,7 +450,6 @@ class WeeklyScheduleGenerator(QMainWindow):
 
 
 
-
     def select_task(self, item):
         self.selected_task = item
         task_text = item.text()
@@ -412,6 +467,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         self.start_time_input.setText(start_time)
         self.end_time_input.setText(end_time)
         self.color_button.setStyleSheet(f"background-color: {color};")
+        self.color_button.update()  # Update the color button to reflect the selected color
 
     def convert_time_input(self, time_input):
         # Remove non-digit characters
@@ -488,6 +544,13 @@ class WeeklyScheduleGenerator(QMainWindow):
             file_path, _ = QFileDialog.getOpenFileName(self, "Import Task List", "", "Text Files (*.txt)")
             if file_path:
                 self.read_task_list(file_path)
+
+        # Set the font color of each task item in the task list
+        for i in range(self.task_list.count()):
+            task_item = self.task_list.item(i)
+            task_info = task_item.text().split(", ")
+            color = task_info[3]
+            task_item.setForeground(QColor(color))  # Set the font color
 
     def read_task_list(self, file_path):
         # Clear the current task list
