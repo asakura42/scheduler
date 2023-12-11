@@ -260,6 +260,11 @@ class WeeklyScheduleGenerator(QMainWindow):
         add_task_button = QPushButton("Add Task")
         render_button = QPushButton("Render")
 
+        # Create a "Clone Task" button
+        clone_button = QPushButton("Clone Task")
+        clone_button.clicked.connect(self.clone_task)
+
+
         # Create an "Auto colors" button
         auto_colors_button = QPushButton("Auto colors")
         auto_colors_button.clicked.connect(self.on_auto_colors_clicked)
@@ -284,6 +289,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         layout.addWidget(self.end_time_input)
         layout.addWidget(color_label)
         layout.addWidget(self.color_button)
+        layout.addWidget(clone_button)
         layout.addWidget(add_task_button)
         layout.addWidget(self.task_list)
         layout.addWidget(render_button)
@@ -346,6 +352,25 @@ class WeeklyScheduleGenerator(QMainWindow):
         if confirmation == QMessageBox.Yes:
             self.generate_auto_colors()
 
+    def clone_task(self):
+        # Get the selected task item
+        selected_item = self.task_list.currentItem()
+        if selected_item is not None:
+            # Get the details of the selected task
+            task_text = selected_item.text()
+            task_info = task_text.split(", ")
+            task = task_info[0]
+            day = task_info[1]
+            start_time = task_info[2].split(" - ")[0]
+            end_time = task_info[2].split(" - ")[1]
+            color = task_info[3]
+
+            # Create a new task item with the same details
+            new_task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
+
+            # Insert the new task item in the sorted position
+            self.insert_sorted(new_task_item)
+
 
     def generate_auto_colors(self):
         # Create a dictionary to store colors for each task name
@@ -388,7 +413,6 @@ class WeeklyScheduleGenerator(QMainWindow):
         end_time = self.convert_time_input(self.end_time_input.text())
         color = self.color_button.palette().button().color().name()
 
-        # Validate the time inputs
         if not self.is_valid_time(start_time) or not self.is_valid_time(end_time):
             QMessageBox.critical(self, "Invalid Time", "Please enter a valid time in the format HH:mm.")
             return
@@ -397,22 +421,29 @@ class WeeklyScheduleGenerator(QMainWindow):
             QMessageBox.critical(self, "Invalid Time Range", "The end time must be later than the start time.")
             return
 
-        if self.selected_task is not None:
-            # Edit the selected task
-            self.selected_task.setText(f"{task}, {day}, {start_time} - {end_time}, {color}")
-            self.selected_task.setForeground(QColor(color))  # Set the font color
-            self.selected_task = None
-        else:
-            # Create a new task item
-            task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
-            task_item.setForeground(QColor(color))  # Set the font color
-            # Insert the task item in the sorted position
-            self.insert_sorted(task_item)
+        # Delete the existing task if it exists
+        existing_task_item = self.find_existing_task(task)
+        if existing_task_item is not None:
+            self.task_list.takeItem(self.task_list.row(existing_task_item))
 
-        # Clear the input fields
+        # Create a new task item
+        task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
+        task_item.setForeground(QColor(color))  # Set the font color
+        # Insert the task item in the sorted position
+        self.insert_sorted(task_item)
+
         self.task_input.clear()
         self.start_time_input.clear()
         self.end_time_input.clear()
+
+    def find_existing_task(self, task):
+        for i in range(self.task_list.count()):
+            task_item = self.task_list.item(i)
+            task_info = task_item.text().split(", ")
+            existing_task = task_info[0]
+            if existing_task == task:
+                return task_item
+        return None
 
     def insert_sorted(self, task_item):
         # Get the day and start time of the task item
