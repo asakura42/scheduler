@@ -49,6 +49,9 @@ import typing as T
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 
+weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
 
 class WeekdayEnum(Enum):
     mon = 0
@@ -256,6 +259,10 @@ class WeeklyScheduleGenerator(QMainWindow):
         add_task_button = QPushButton("Add Task")
         render_button = QPushButton("Render")
 
+        # Create a delete button
+        delete_button = QPushButton("Delete Task")
+        delete_button.clicked.connect(self.delete_task)
+
         # Create task list
         self.task_list = QListWidget()
         self.task_list.itemClicked.connect(self.select_task)
@@ -275,6 +282,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         layout.addWidget(add_task_button)
         layout.addWidget(self.task_list)
         layout.addWidget(render_button)
+        layout.addWidget(delete_button)
 
         # Create a central widget and set the layout
         central_widget = QWidget()
@@ -302,13 +310,31 @@ class WeeklyScheduleGenerator(QMainWindow):
         if color.isValid():
             self.color_button.setStyleSheet(f"background-color: {color.name()};")
 
+    def delete_task(self):
+        # Get the selected task item
+        selected_item = self.task_list.currentItem()
+        if selected_item is not None:
+            # Show a confirmation dialog
+            reply = QMessageBox.question(
+                self,
+                "Confirmation",
+                "Are you sure you want to delete this task?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            # If the user confirms the deletion, remove the selected task item from the task list
+            if reply == QMessageBox.Yes:
+                self.task_list.takeItem(self.task_list.row(selected_item))
     def add_task(self):
+        # Get the task details from the input fields
         task = self.task_input.text()
         day = self.day_input.currentText()
         start_time = self.convert_time_input(self.start_time_input.text())
         end_time = self.convert_time_input(self.end_time_input.text())
         color = self.color_button.palette().button().color().name()
 
+        # Validate the time inputs
         if not self.is_valid_time(start_time) or not self.is_valid_time(end_time):
             QMessageBox.critical(self, "Invalid Time", "Please enter a valid time in the format HH:mm.")
             return
@@ -324,12 +350,50 @@ class WeeklyScheduleGenerator(QMainWindow):
         else:
             # Create a new task item
             task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
-            self.task_list.addItem(task_item)
+            # Insert the task item in the sorted position
+            self.insert_sorted(task_item)
 
         # Clear the input fields
         self.task_input.clear()
         self.start_time_input.clear()
         self.end_time_input.clear()
+
+    def insert_sorted(self, task_item):
+        # Get the day and start time of the task item
+        task_info = task_item.text().split(", ")
+        task_day = task_info[1]
+        task_start_time = task_info[2].split(" - ")[0]
+
+        # Get the index of the day in the weekdays list
+        task_day_index = weekdays.index(task_day)
+
+        # Convert the start time to a datetime object for comparison
+        task_start_datetime = datetime.datetime.strptime(task_start_time, "%H:%M")
+
+        # Loop through the existing task items
+        for i in range(self.task_list.count()):
+            # Get the day and start time of the current task item
+            current_info = self.task_list.item(i).text().split(", ")
+            current_day = current_info[1]
+            current_start_time = current_info[2].split(" - ")[0]
+
+            # Get the index of the day in the weekdays list
+            current_day_index = weekdays.index(current_day)
+
+            # Convert the start time to a datetime object for comparison
+            current_start_datetime = datetime.datetime.strptime(current_start_time, "%H:%M")
+
+            # Compare the day index and start time
+            if task_day_index < current_day_index or (task_day_index == current_day_index and task_start_datetime < current_start_datetime):
+                self.task_list.insertItem(i, task_item)
+                return
+
+        # If the task day index and start time are larger than all the existing day indexes and start times,
+        # append the task item at the end
+        self.task_list.addItem(task_item)
+
+
+
 
     def select_task(self, item):
         self.selected_task = item
@@ -376,7 +440,6 @@ class WeeklyScheduleGenerator(QMainWindow):
 
     def render_schedule(self):
         input_file_content = self.generate_input_file()
-        current_datetime = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         temp_file_path = f"outputs/{current_datetime}.txt"
         png_file_path = f"outputs/{current_datetime}.png"
 
@@ -435,7 +498,8 @@ class WeeklyScheduleGenerator(QMainWindow):
             for line in file:
                 # Create a new task item from the line
                 task_item = QListWidgetItem(line.strip())
-                self.task_list.addItem(task_item)
+                # Insert the task item in the sorted position
+                self.insert_sorted(task_item)
 
 
 # Create the application instance
