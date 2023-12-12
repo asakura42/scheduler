@@ -259,11 +259,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         # Create buttons
         add_task_button = QPushButton("Add Task")
         render_button = QPushButton("Render")
-
-        # Create a "Clone Task" button
-        clone_button = QPushButton("Clone Task")
-        clone_button.clicked.connect(self.clone_task)
-
+        clone_task_button = QPushButton("Clone Task")
 
         # Create an "Auto colors" button
         auto_colors_button = QPushButton("Auto colors")
@@ -289,12 +285,12 @@ class WeeklyScheduleGenerator(QMainWindow):
         layout.addWidget(self.end_time_input)
         layout.addWidget(color_label)
         layout.addWidget(self.color_button)
-        layout.addWidget(clone_button)
         layout.addWidget(add_task_button)
         layout.addWidget(self.task_list)
         layout.addWidget(render_button)
         layout.addWidget(delete_button)
         layout.addWidget(auto_colors_button)
+        layout.addWidget(clone_task_button)
 
         # Create a central widget and set the layout
         central_widget = QWidget()
@@ -304,6 +300,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         # Connect button signals to functions
         add_task_button.clicked.connect(self.add_task)
         render_button.clicked.connect(self.render_schedule)
+        clone_task_button.clicked.connect(self.clone_task)
 
         # Connect returnPressed signal of input fields to add_task function
         self.task_input.returnPressed.connect(self.add_task)
@@ -339,6 +336,13 @@ class WeeklyScheduleGenerator(QMainWindow):
             if reply == QMessageBox.Yes:
                 self.task_list.takeItem(self.task_list.row(selected_item))
 
+    def clone_task(self):
+        # Get the selected task item
+        selected_item = self.task_list.currentItem()
+        if selected_item is not None:
+            # Clone the selected task item
+            cloned_item = QListWidgetItem(selected_item.text())
+            self.insert_sorted(cloned_item)
 
     def on_auto_colors_clicked(self):
         # Display a confirmation dialog
@@ -351,26 +355,6 @@ class WeeklyScheduleGenerator(QMainWindow):
 
         if confirmation == QMessageBox.Yes:
             self.generate_auto_colors()
-
-    def clone_task(self):
-        # Get the selected task item
-        selected_item = self.task_list.currentItem()
-        if selected_item is not None:
-            # Get the details of the selected task
-            task_text = selected_item.text()
-            task_info = task_text.split(", ")
-            task = task_info[0]
-            day = task_info[1]
-            start_time = task_info[2].split(" - ")[0]
-            end_time = task_info[2].split(" - ")[1]
-            color = task_info[3]
-
-            # Create a new task item with the same details
-            new_task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
-
-            # Insert the new task item in the sorted position
-            self.insert_sorted(new_task_item)
-
 
     def generate_auto_colors(self):
         # Create a dictionary to store colors for each task name
@@ -413,6 +397,7 @@ class WeeklyScheduleGenerator(QMainWindow):
         end_time = self.convert_time_input(self.end_time_input.text())
         color = self.color_button.palette().button().color().name()
 
+        # Validate the time inputs
         if not self.is_valid_time(start_time) or not self.is_valid_time(end_time):
             QMessageBox.critical(self, "Invalid Time", "Please enter a valid time in the format HH:mm.")
             return
@@ -421,29 +406,22 @@ class WeeklyScheduleGenerator(QMainWindow):
             QMessageBox.critical(self, "Invalid Time Range", "The end time must be later than the start time.")
             return
 
-        # Delete the existing task if it exists
-        existing_task_item = self.find_existing_task(task)
-        if existing_task_item is not None:
-            self.task_list.takeItem(self.task_list.row(existing_task_item))
+        if self.selected_task is not None:
+            # Remove the existing task item from the task list
+            self.task_list.takeItem(self.task_list.row(self.selected_task))
+            self.selected_task = None
 
         # Create a new task item
         task_item = QListWidgetItem(f"{task}, {day}, {start_time} - {end_time}, {color}")
         task_item.setForeground(QColor(color))  # Set the font color
+
         # Insert the task item in the sorted position
         self.insert_sorted(task_item)
 
+        # Clear the input fields
         self.task_input.clear()
         self.start_time_input.clear()
         self.end_time_input.clear()
-
-    def find_existing_task(self, task):
-        for i in range(self.task_list.count()):
-            task_item = self.task_list.item(i)
-            task_info = task_item.text().split(", ")
-            existing_task = task_info[0]
-            if existing_task == task:
-                return task_item
-        return None
 
     def insert_sorted(self, task_item):
         # Get the day and start time of the task item
@@ -478,8 +456,6 @@ class WeeklyScheduleGenerator(QMainWindow):
         # If the task day index and start time are larger than all the existing day indexes and start times,
         # append the task item at the end
         self.task_list.addItem(task_item)
-
-
 
     def select_task(self, item):
         self.selected_task = item
